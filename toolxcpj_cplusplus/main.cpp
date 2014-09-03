@@ -68,27 +68,6 @@ char *readLine(FILE *f)
     size_t readed;
     
     
-    /// trim '\t' in begin.
-   while( (readed = fread( pBuf , sizeof(char), 1 , f)) )
-   {
-       if ( pBuf[0] != '\t')
-       {
-           if (pBuf[0] =='\n')
-           {
-               pBuf[0]='\0';
-           
-               return buf1;
-           }
-           
-           pBuf+=1;
-           break;
-       }
-   }
-    
-    if (readed == 0) {
-        return nullptr;
-    }
-
     while ( (readed = fread( pBuf , sizeof(char), 1 , f)))
     {
         if (pBuf[0] =='\n')
@@ -100,7 +79,11 @@ char *readLine(FILE *f)
         
         pBuf+=1;
     }
+   
     
+    if (readed == 0) {
+        return nullptr;
+    }
     
     return buf1;
 }
@@ -110,12 +93,12 @@ char *readLine(FILE *f)
  * get a line of s
  * return the point of the new line.
  */
-char *getLine (char *s )
-{
-    char *p = strchr(s, '\n');
-    
-    return p + 1;
-}
+//char *getLine (char *s )
+//{
+//    char *p = strchr(s, '\n');
+//    
+//    return p + 1;
+//}
 
 /**
  * trim the right tab '\t'
@@ -142,22 +125,19 @@ void parseLine_BuildFile(char *s)
     char *uuid = (char*)malloc(xcUUIDLen+1);
     char *uuidFileRef = (char*)malloc(xcUUIDLen +1);
     
-    
+    /// find uuid
     strncpy(uuid, s,xcUUIDLen);
-    
     uuid[xcUUIDLen] ='\0';
-    
     printf("uuid: %s\n",uuid);
     
+    
+    /// find fileRef uuid.
     const char fileRef[] ="fileRef";
     const size_t fileRefLen = sizeof(fileRef)/sizeof(fileRef[0]);
-    char *p = strstr(s, "fileRef");
+    char *p = strstr(s, fileRef);
     p += fileRefLen;
     
-    for (;p[0] == '=' || p[0] == ' ';p++)
-    {
-    }
-    
+    for (;p[0] == '=' || p[0] == ' ';p++);
     
     strncpy(uuidFileRef, p, xcUUIDLen);
     uuidFileRef[xcUUIDLen]='\0';
@@ -166,7 +146,54 @@ void parseLine_BuildFile(char *s)
     mapBuildFile.insert(std::pair<char*,char*>(uuid,uuidFileRef));
 }
 
-
+void parseLine_FileRef(char *s)
+{
+    //32385E261966AB1600928312 /* cloud_ico.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = cloud_ico.png; sourceTree = "<group>"; };
+    
+    char *uuid = (char*)malloc(xcUUIDLen+1);
+    char *name = (char*) malloc(PATH_MAX);
+    char *path = (char*) malloc(PATH_MAX);
+    
+    
+    
+    
+    /// find uuid
+    strncpy(uuid, s,xcUUIDLen);
+    uuid[xcUUIDLen] ='\0';
+    printf("uuid: %s\n",uuid);
+    
+    
+    /// find name
+    char *pName = s + xcUUIDLen;
+   for (;pName[0] == '/' || pName[0] == '*' || pName[0] == ' ';pName++);
+    
+    char *pName2 = pName;
+   for (; pName2[0] != ' ' && pName2[0] != '*';pName2++);
+    
+    strncpy(name, pName, pName2 - pName);
+    printf("name: %s\n",name);
+    
+    
+    
+    
+    /// find path
+    const char fPath[]= "path";
+    const size_t fPathLen = sizeof(fPath)/sizeof(fPath[0]) -1;
+    
+    char *p = strstr(s, fPath);
+    if (p ) {
+        p += fPathLen;
+    }
+    
+   for (;p[0] == '=' || p[0] == ' ';p++);
+    
+    char *p2 = p;
+   for (;p2[0] != ';';p2++);
+    
+    strncpy(path, p, p2 - p);
+    
+    printf("path: %s\n\n",path);
+}
 
 void parseLine(char *s, PB_SECION c)
 {
@@ -180,7 +207,7 @@ void parseLine(char *s, PB_SECION c)
     }
     else if (c == PBXFileReference )
     {
-        
+        parseLine_FileRef(s);
     }
     else if (c == PBXFrameworksBuildPhase )
     {
@@ -280,19 +307,15 @@ int main(int argc, const char * argv[])
     FILE *file = fopen(testProj, "r");
     if (file)
     {
-        
-//        char buf[2000];
-//        fread(buf, 1, 2000, file);
-        
-        
-        
+
         PB_SECION currSection ;
        
         char * s ;
 
         
-        while ( (s = readLine(file)) )
+        while ( (s =  readLine(file)) )
         {
+            s = trimLine(s);
             //printf("%s\n",s);
             
             currSection = parseSection(s);
@@ -305,12 +328,13 @@ int main(int argc, const char * argv[])
                while(true)
                 {
                     s = readLine(file);
+                    s = trimLine(s);
                     //printf("%s\n",s);
                     
                     if(isSecionEnd(s,currSection))
                         break;
-                    
-                    parseLine(s, currSection);
+                    else
+                        parseLine(s, currSection);
                 }
                 
             }
