@@ -8,6 +8,7 @@
 
 #include <iostream>
 #include <map>
+#include <vector>
 
 using namespace std;
 
@@ -68,6 +69,10 @@ char *readLine(FILE *f)
     size_t readed;
     
     
+    fpos_t pos  ;
+    fgetpos(f, &pos);
+    pos++;
+    
     while ( (readed = fread( pBuf , sizeof(char), 1 , f)))
     {
         if (pBuf[0] =='\n')
@@ -119,16 +124,52 @@ char * trimLine(char *s)
  * key: uuid
  * fileRef: uuid
  */
-std::map<char*, char*> mapBuildFile;
+struct PB_BuildFile
+{
+    fpos_t posBegin;
+    enum BuildFileType
+    {
+        Resources,
+        Sources
+    }type;
+    char uuid [xcUUIDLen+1];
+    char name [PATH_MAX];
+    
+    char uuidFileRef [xcUUIDLen +1];
+    fpos_t posFileRef;
+};
+
+
+std::map<char*, PB_BuildFile*> mapBuildFile;
+typedef pair<char*, PB_BuildFile*> pariBuidFile;
+vector<char*> vecBuildFile;
+
+
 void parseLine_BuildFile(char *s)
 {
-    char *uuid = (char*)malloc(xcUUIDLen+1);
-    char *uuidFileRef = (char*)malloc(xcUUIDLen +1);
+    PB_BuildFile *buildFile = new PB_BuildFile;
+    
+    
+    char *uuid = buildFile->uuid;
+    char *name = buildFile->name;
+    char *uuidFileRef = buildFile->uuidFileRef;
     
     /// find uuid
     strncpy(uuid, s,xcUUIDLen);
     uuid[xcUUIDLen] ='\0';
     printf("uuid: %s\n",uuid);
+    
+    
+    
+    /// find name
+    char *pName = s + xcUUIDLen;
+    for (;pName[0] == '/' || pName[0] == '*' || pName[0] == ' ';pName++){}
+    
+    char *pName2 = pName;
+    for (; pName2[0] != ' ' && pName2[0] != '*';pName2++){}
+    
+    strncpy(name, pName, pName2 - pName);
+    printf("name: %s\n",name);
     
     
     /// find fileRef uuid.
@@ -143,15 +184,19 @@ void parseLine_BuildFile(char *s)
     uuidFileRef[xcUUIDLen]='\0';
     
     
-    mapBuildFile.insert(std::pair<char*,char*>(uuid,uuidFileRef));
+    mapBuildFile.insert(make_pair(uuid, buildFile));
+    //vecBuildFile.push_back(uuid);
 }
 
+
+
+map<char*,char*> mapFileRef;
 void parseLine_FileRef(char *s)
 {
     //32385E261966AB1600928312 /* cloud_ico.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = cloud_ico.png; sourceTree = "<group>"; };
     
-    char *uuid = (char*)malloc(xcUUIDLen+1);
     char *name = (char*) malloc(PATH_MAX);
+    char *uuid = (char*)malloc(xcUUIDLen+1);
     char *path = (char*) malloc(PATH_MAX);
     
     
@@ -165,10 +210,10 @@ void parseLine_FileRef(char *s)
     
     /// find name
     char *pName = s + xcUUIDLen;
-   for (;pName[0] == '/' || pName[0] == '*' || pName[0] == ' ';pName++);
+    for (;pName[0] == '/' || pName[0] == '*' || pName[0] == ' ';pName++){}
     
     char *pName2 = pName;
-   for (; pName2[0] != ' ' && pName2[0] != '*';pName2++);
+    for (; pName2[0] != ' ' && pName2[0] != '*';pName2++){}
     
     strncpy(name, pName, pName2 - pName);
     printf("name: %s\n",name);
@@ -185,14 +230,18 @@ void parseLine_FileRef(char *s)
         p += fPathLen;
     }
     
-   for (;p[0] == '=' || p[0] == ' ';p++);
+    for (;p[0] == '=' || p[0] == ' ';p++){}
     
     char *p2 = p;
-   for (;p2[0] != ';';p2++);
+    for (;p2[0] != ';';p2++){}
     
     strncpy(path, p, p2 - p);
     
     printf("path: %s\n\n",path);
+    
+    
+    
+    mapFileRef.insert(pair<char*, char*>(name,uuid ));
 }
 
 void parseLine(char *s, PB_SECION c)
@@ -312,7 +361,7 @@ int main(int argc, const char * argv[])
        
         char * s ;
 
-        
+        /// read and parse the file
         while ( (s =  readLine(file)) )
         {
             s = trimLine(s);
@@ -341,7 +390,18 @@ int main(int argc, const char * argv[])
         }
         
         
-        
+        /// change the file. update the buildFile's fileRefrence.
+        auto e = mapBuildFile.end();
+        for (auto i = mapBuildFile.begin(); i!= e; ++i)
+        {
+            pariBuidFile a = *i;
+            PB_BuildFile *buildFile = a.second;
+            if (buildFile)
+            {
+                mapFileRef[buildFile->name];
+            }
+            
+        }
         
         
         fclose(file);
@@ -358,3 +418,12 @@ int main(int argc, const char * argv[])
     
     return 0;
 }
+
+
+
+
+
+
+
+
+
