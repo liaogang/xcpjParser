@@ -15,6 +15,7 @@ using namespace std;
 enum { xcUUIDLen = 24 };
 
 
+static FILE *file = NULL;
 
 
 char *sectionNames[]=
@@ -55,23 +56,24 @@ enum PB_SECION
 };
 
 
+
+static char bufLine[LINE_MAX];
+fpos_t posLineBegin,posLineEnd;
 char *readLine(FILE *f)
 {
-    enum {bufLen = 800  };
-    static char buf1[bufLen];
+    char *buf1 = bufLine;
     char *pBuf = buf1;
 
 #ifdef DEBUG
-    memset(buf1, 0, bufLen);
+    memset(buf1, 0, LINE_MAX);
 #endif
     
     
     size_t readed;
     
     
-    fpos_t pos  ;
-    fgetpos(f, &pos);
-    pos++;
+    fgetpos(f, &posLineBegin);
+    posLineBegin++;
     
     while ( (readed = fread( pBuf , sizeof(char), 1 , f)))
     {
@@ -149,6 +151,8 @@ void parseLine_BuildFile(char *s)
 {
     PB_BuildFile *buildFile = new PB_BuildFile;
     
+    buildFile->posBegin = posLineBegin;
+    
     
     char *uuid = buildFile->uuid;
     char *name = buildFile->name;
@@ -183,6 +187,7 @@ void parseLine_BuildFile(char *s)
     strncpy(uuidFileRef, p, xcUUIDLen);
     uuidFileRef[xcUUIDLen]='\0';
     
+    buildFile->posFileRef = p - bufLine;
     
     mapBuildFile.insert(make_pair(uuid, buildFile));
     //vecBuildFile.push_back(uuid);
@@ -353,7 +358,7 @@ int main(int argc, const char * argv[])
     char testProj[] =  "/Users/liaogang/toolxcpj/toolxcpj/test.pbxproj" ;
     
 
-    FILE *file = fopen(testProj, "r");
+    file = fopen(testProj, "r");
     if (file)
     {
 
@@ -377,7 +382,7 @@ int main(int argc, const char * argv[])
                while(true)
                 {
                     s = readLine(file);
-                    s = trimLine(s);
+                    
                     //printf("%s\n",s);
                     
                     if(isSecionEnd(s,currSection))
